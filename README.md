@@ -1,15 +1,12 @@
-﻿# Roundabout Traffic Light Simulation
+# 🚦 신호등 놀이
 
-4-way roundabout (CCW) with per-direction traffic lights.
+아이가 가지고 놀기 좋은 **일방통행 신호등** 시뮬레이션.
 
-- Mobile-friendly touch controls
-- Auto / manual light modes
-- Random car arrivals (Poisson)
+- 큰 버튼: 빨강 / 노랑 / 초록
+- 터치 지원 (핸드폰·태블릿)
+- 자동 신호 모드
+- 차 더 보내기
 
-## Live demo
+## 플레이
 
-GitHub Pages (after deploy): https://nuckythompson28-code.github.io/roundabout-traffic-sim/
-
-## Local
-
-Open `index.html` in a browser.
+https://nuckythompson28-code.github.io/roundabout-traffic-sim/
