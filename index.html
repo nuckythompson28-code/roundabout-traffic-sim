@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#121620" />
+  <title>Roundabout · Traffic Light</title>
+  <style>
+    :root {
+      --bg: #121620;
+      --panel: #1c202c;
+      --panel2: #242a3a;
+      --border: #3a4258;
+      --muted: #a0a8b9;
+      --white: #f5f5fa;
+      --red: #e74c3c;
+      --yellow: #f1c40f;
+      --green: #2ecc71;
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --safe-t: env(safe-area-inset-top, 0px);
+      --safe-l: env(safe-area-inset-left, 0px);
+      --safe-r: env(safe-area-inset-right, 0px);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--white);
+      font-family: "Segoe UI", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding:
+        max(8px, var(--safe-t))
+        max(10px, var(--safe-r))
+        max(8px, var(--safe-b))
+        max(10px, var(--safe-l));
+      gap: 8px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 6px 12px;
+      padding: 2px 2px 0;
+    }
+
+    h1 {
+      font-size: clamp(0.95rem, 3.5vw, 1.2rem);
+      font-weight: 700;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: clamp(0.72rem, 2.6vw, 0.85rem);
+    }
+
+    .stage {
+      position: relative;
+      min-height: 0;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.06);
+      background: #0e121a;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .hud {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      right: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      pointer-events: none;
+    }
+
+    .chip {
+      background: rgba(28, 32, 44, .88);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: clamp(0.7rem, 2.5vw, 0.8rem);
+      color: var(--muted);
+      backdrop-filter: blur(6px);
+    }
+
+    .chip strong { color: var(--white); font-weight: 700; }
+
+    /* ── Bottom control panel ── */
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .row.lights {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    @media (max-width: 420px) {
+      .row.lights { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .light-card {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px;
+      min-width: 0;
+    }
+
+    .light-card .name {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-align: center;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .light-card .btns {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+    }
+
+    .sig {
+      height: 42px;
+      border: none;
+      border-radius: 10px;
+      font-size: 0;
+      cursor: pointer;
+      position: relative;
+      opacity: 0.45;
+      transition: opacity .12s, transform .08s, box-shadow .12s;
+    }
+
+    .sig::after {
+      content: "";
+      position: absolute;
+      inset: 10px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: inset 0 -2px 4px rgba(0,0,0,.25);
+    }
+
+    .sig.red { background: #3a1a18; color: var(--red); }
+    .sig.yellow { background: #3a3414; color: var(--yellow); }
+    .sig.green { background: #153525; color: var(--green); }
+
+    .sig.on {
+      opacity: 1;
+      box-shadow: 0 0 0 2px rgba(255,255,255,.2), 0 0 14px currentColor;
+      transform: scale(1.04);
+    }
+
+    .sig:active { transform: scale(0.96); }
+
+    .tools {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    @media (max-width: 380px) {
+      .tools { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .tools button, .all-row button {
+      height: 46px;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--white);
+      border-radius: 12px;
+      font: inherit;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .tools button:active, .all-row button:active {
+      transform: scale(0.97);
+      background: #2c3348;
+    }
+
+    .tools button.mode-on {
+      background: #3a3414;
+      border-color: var(--yellow);
+      color: var(--yellow);
+    }
+
+    .tools button.paused {
+      background: #3a3414;
+      border-color: var(--yellow);
+      color: var(--yellow);
+    }
+
+    .all-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .all-row .all-red { background: #3a1a18; border-color: #7a2f28; color: #ffb4ab; }
+    .all-row .all-yellow { background: #3a3414; border-color: #7a6a1c; color: #ffe08a; }
+    .all-row .all-green { background: #153525; border-color: #1f6a42; color: #9ef0c1; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .slider-row input[type="range"] {
+      flex: 1;
+      height: 36px;
+      accent-color: #5b8cff;
+    }
+
+    .slider-row span {
+      min-width: 3.2em;
+      text-align: right;
+      color: var(--white);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hint {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.35;
+    }
+
+    @media (min-width: 800px) {
+      body { padding: 14px; gap: 12px; }
+      .sig { height: 38px; }
+      .tools button, .all-row button { height: 42px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔄 회전교차로 · 신호등 시뮬</h1>
+    <span class="sub">4방향 진입 · 반시계 회전 · 모바일 터치 지원</span>
+  </header>
+
+  <div class="stage">
+    <canvas id="c"></canvas>
+    <div class="hud">
+      <span class="chip">모드 <strong id="stMode">AUTO</strong></span>
+      <span class="chip">도로 <strong id="stCars">0</strong></span>
+      <span class="chip">생성 <strong id="stSpawn">0</strong></span>
+      <span class="chip">통과 <strong id="stPass">0</strong></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="all-row">
+      <button type="button" class="all-red" id="allRed">전체 빨강</button>
+      <button type="button" class="all-yellow" id="allYellow">전체 노랑</button>
+      <button type="button" class="all-green" id="allGreen">전체 초록</button>
+    </div>
+
+    <div class="row lights" id="lightCards">
+      <!-- filled by JS: N E S W -->
+    </div>
+
+    <div class="tools">
+      <button type="button" id="btnMode">자동</button>
+      <button type="button" id="btnPause">일시정지</button>
+      <button type="button" id="btnReset">리셋</button>
+      <button type="button" id="btnCycle">전체 순환</button>
+    </div>
+
+    <div class="slider-row">
+      <label for="spawnRate">차량 간격</label>
+      <input id="spawnRate" type="range" min="0.4" max="3.5" step="0.05" value="1.2" />
+      <span id="spawnLabel">1.20s</span>
+    </div>
+
+    <p class="hint">각 방향 신호 버튼 · 캔버스 신호등 터치 · PC: 1/2/3 전체 · M 자동 · Space 일시정지</p>
+  </div>
+
+  <script>
+(() => {
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+  const stage = canvas.parentElement;
+
+  // ── Directions (CCW order around circle: N → W → S → E for exits, spawn from outer) ──
+  // Approach angles: cars enter ring at these angles (radians, 0 = east, CCW)
+  // N approach comes from top, enters ring at angle = -PI/2 (top of circle) going CCW
+  const DIRS = ["N", "E", "S", "W"];
+  const DIR_LABEL = { N: "북 (N)", E: "동 (E)", S: "남 (S)", W: "서 (W)" };
+  // Entry point angle on the ring (where approach meets ring), and travel is always CCW
+  const ENTRY_ANGLE = { N: -Math.PI / 2, E: 0, S: Math.PI / 2, W: Math.PI };
+  // Exit angles (same as entries for 4-way)
+  const EXIT_ANGLE = { ...ENTRY_ANGLE };
+  // Next exit options from each entry: go 1, 2, or 3 exits (right / straight / left in right-hand traffic with CCW roundabout)
+  // For CCW roundabout: from N, first exit is W, then S, then E
+  const EXIT_ORDER = {
+    N: ["W", "S", "E"],
+    E: ["N", "W", "S"],
+    S: ["E", "N", "W"],
+    W: ["S", "E", "N"],
+  };
+
+  const GREEN_S = 5.5;
+  const YELLOW_S = 1.8;
+  const RED_S = 4.5;
+
+  const CAR_COLORS = [
+    "#e74c3c", "#3498db", "#2ecc71", "#9b59b6", "#f1c40f",
+    "#1abc9c", "#e67e22", "#ecf0f1", "#5dade2", "#c0392b",
+  ];
+
+  // Layout (logical coords — canvas is square-ish)
+  let CSS_W = 600, CSS_H = 600, DPR = 1;
+  let CX = 300, CY = 300;
+  let RING_R = 110;       // centerline of circulating lane
+  let RING_HALF = 22;     // half width of ring lane
+  let ROAD_W = 44;
+  let APPROACH_LEN = 200;
+  let LIGHT_OFFSET = 0;   // computed
+
+  let meanArrival = 1.2;
+  let paused = false;
+  let manual = false;
+  let lastTs = 0;
+
+  /** @type {Record<string, {state:string, timer:number}>} */
+  const lights = {
+    N: { state: "GREEN", timer: GREEN_S },
+    E: { state: "RED", timer: RED_S },
+    S: { state: "GREEN", timer: GREEN_S * 0.5 },
+    W: { state: "RED", timer: RED_S * 0.5 },
+  };
+
+  // Stagger auto phases: N-S green together, then E-W (like real signal)
+  let autoPhase = 0; // 0 = NS green, 1 = NS yellow, 2 = EW green, 3 = EW yellow
+  let autoTimer = GREEN_S;
+
+  /** @type {Car[]} */
+  let cars = [];
+  let spawnTimer = expovariate(meanArrival);
+  let totalSpawned = 0;
+  let totalPassed = 0;
+
+  /**
+   * @typedef {object} Car
+   * @property {string} id
+   * @property {string} from
+   * @property {string} to
+   * @property {"approach"|"wait"|"ring"|"exit"} phase
+   * @property {number} dist  // along current path segment (px)
+   * @property {number} angle // on ring
+   * @property {number} speed
+   * @property {number} maxSpeed
+   * @property {string} color
+   * @property {number} w
+   * @property {number} h
+   * @property {boolean} decidedYellow
+   * @property {boolean} willStopOnYellow
+   * @property {number} exitAngle
+   * @property {number} targetExitAngle  // angle where we leave ring
+   */
+
+  function expovariate(mean) {
+    return -Math.log(1 - Math.random()) * mean;
+  }
+
+  function phaseDur(s) {
+    return s === "GREEN" ? GREEN_S : s === "YELLOW" ? YELLOW_S : RED_S;
+  }
+
+  function resize() {
+    const rect = stage.getBoundingClientRect();
+    CSS_W = Math.max(280, rect.width);
+    CSS_H = Math.max(280, rect.height);
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(CSS_W * DPR);
+    canvas.height = Math.floor(CSS_H * DPR);
+    canvas.style.width = CSS_W + "px";
+    canvas.style.height = CSS_H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    CX = CSS_W / 2;
+    CY = CSS_H / 2;
+    const m = Math.min(CSS_W, CSS_H);
+    RING_R = m * 0.18;
+    RING_HALF = Math.max(16, m * 0.036);
+    ROAD_W = Math.max(34, m * 0.072);
+    APPROACH_LEN = m * 0.42;
+    LIGHT_OFFSET = RING_R + RING_HALF + 36;
+  }
+
+  // ── Geometry helpers ──────────────────────────────────────
+  function approachAxis(dir) {
+    // Unit vector from center toward entry (outward), and along approach into center
+    // Approach cars move toward center
+    switch (dir) {
+      case "N": return { along: { x: 0, y: 1 }, side: { x: 1, y: 0 }, outward: { x: 0, y: -1 } };
+      case "S": return { along: { x: 0, y: -1 }, side: { x: -1, y: 0 }, outward: { x: 0, y: 1 } };
+      case "E": return { along: { x: -1, y: 0 }, side: { x: 0, y: 1 }, outward: { x: 1, y: 0 } };
+      case "W": return { along: { x: 1, y: 0 }, side: { x: 0, y: -1 }, outward: { x: -1, y: 0 } };
+    }
+  }
+
+  function stopLineDist() {
+    // Distance from center along approach to stop line (just before ring)
+    return RING_R + RING_HALF + 8;
+  }
+
+  function approachPos(dir, distFromCenter, laneOffset = 0) {
+    // distFromCenter: larger = farther from center (spawn far out)
+    const a = approachAxis(dir);
+    // Offset to right of travel direction for right-hand traffic
+    return {
+      x: CX + a.outward.x * distFromCenter + a.side.x * laneOffset,
+      y: CY + a.outward.y * distFromCenter + a.side.y * laneOffset,
+      heading: Math.atan2(a.along.y, a.along.x),
+    };
+  }
+
+  function ringPos(angle) {
+    return {
+      x: CX + Math.cos(angle) * RING_R,
+      y: CY + Math.sin(angle) * RING_R,
+      heading: angle + Math.PI / 2, // tangent CCW
+    };
+  }
+
+  function exitPos(dir, distFromCenter) {
+    // Leaving away from center along outward
+    const a = approachAxis(dir);
+    // Exit on the "other" side of the road (left of approach lane for CCW exit)
+    // For simplicity use opposite side offset
+    const laneOffset = -ROAD_W * 0.22;
+    return {
+      x: CX + a.outward.x * distFromCenter + a.side.x * laneOffset,
+      y: CY + a.outward.y * distFromCenter + a.side.y * laneOffset,
+      heading: Math.atan2(a.outward.y, a.outward.x),
+    };
+  }
+
+  function normAngle(a) {
+    while (a <= -Math.PI) a += Math.PI * 2;
+    while (a > Math.PI) a -= Math.PI * 2;
+    return a;
+  }
+
+  function angleDiffCCW(from, to) {
+    let d = to - from;
+    while (d < 0) d += Math.PI * 2;
+    while (d >= Math.PI * 2) d -= Math.PI * 2;
+    return d;
+  }
+
+  // ── Lights ────────────────────────────────────────────────
+  function setDirLight(dir, state) {
+    lights[dir].state = state;
+    lights[dir].timer = manual ? Infinity : phaseDur(state);
+    for (const c of cars) {
+      if (c.from === dir && c.phase === "approach") {
+        c.decidedYellow = false;
+        c.willStopOnYellow = false;
+      }
+    }
+    paintLightButtons();
+  }
+
+  function setAll(state) {
+    manual = true;
+    for (const d of DIRS) setDirLight(d, state);
+    updateModeBtn();
+  }
+
+  function cycleAll() {
+    manual = true;
+    for (const d of DIRS) {
+      const s = lights[d].state;
+      setDirLight(d, s === "GREEN" ? "YELLOW" : s === "YELLOW" ? "RED" : "GREEN");
+    }
+    updateModeBtn();
+  }
+
+  function applyAutoPhase() {
+    // 0 NS green EW red, 1 NS yellow, 2 EW green NS red, 3 EW yellow
+    if (autoPhase === 0) {
+      setDirLight("N", "GREEN"); setDirLight("S", "GREEN");
+      setDirLight("E", "RED"); setDirLight("W", "RED");
+      autoTimer = GREEN_S;
+    } else if (autoPhase === 1) {
+      setDirLight("N", "YELLOW"); setDirLight("S", "YELLOW");
+      setDirLight("E", "RED"); setDirLight("W", "RED");
+      autoTimer = YELLOW_S;
+    } else if (autoPhase === 2) {
+      setDirLight("N", "RED"); setDirLight("S", "RED");
+      setDirLight("E", "GREEN"); setDirLight("W", "GREEN");
+      autoTimer = GREEN_S;
+    } else {
+      setDirLight("N", "RED"); setDirLight("S", "RED");
+      setDirLight("E", "YELLOW"); setDirLight("W", "YELLOW");
+      autoTimer = YELLOW_S;
+    }
+  }
+
+  // ── Cars ──────────────────────────────────────────────────
+  function pickExit(from) {
+    const opts = EXIT_ORDER[from];
+    // Prefer variety: 40% first, 35% second, 25% third
+    const r = Math.random();
+    if (r < 0.4) return opts[0];
+    if (r < 0.75) return opts[1];
+    return opts[2];
+  }
+
+  function spawnCar() {
+    // Pick approach with fewer waiting cars
+    const counts = Object.fromEntries(DIRS.map((d) => [d, 0]));
+    for (const c of cars) {
+      if (c.phase === "approach" || c.phase === "wait") counts[c.from]++;
+    }
+    let from = DIRS[0];
+    let best = Infinity;
+    const shuffled = [...DIRS].sort(() => Math.random() - 0.5);
+    for (const d of shuffled) {
+      if (counts[d] < best) {
+        best = counts[d];
+        from = d;
+      }
+    }
+    // Don't spawn if approach jammed
+    if (counts[from] >= 5) return;
+
+    const spawnDist = stopLineDist() + APPROACH_LEN * 0.85;
+    // Check clearance at spawn
+    for (const c of cars) {
+      if (c.from === from && (c.phase === "approach" || c.phase === "wait")) {
+        if (c.dist > spawnDist - 55) return;
+      }
+    }
+
+    const to = pickExit(from);
+    const maxSpeed = 90 + Math.random() * 50;
+    cars.push({
+      id: Math.random().toString(36).slice(2, 9),
+      from,
+      to,
+      phase: "approach",
+      dist: spawnDist, // distance from center
+      angle: ENTRY_ANGLE[from],
+      speed: maxSpeed * 0.6,
+      maxSpeed,
+      color: CAR_COLORS[(Math.random() * CAR_COLORS.length) | 0],
+      w: 28 + Math.random() * 6,
+      h: 16 + Math.random() * 3,
+      decidedYellow: false,
+      willStopOnYellow: false,
+      exitAngle: EXIT_ANGLE[to],
+      targetExitAngle: EXIT_ANGLE[to],
+    });
+    totalSpawned++;
+  }
+
+  function carWorld(car) {
+    if (car.phase === "approach" || car.phase === "wait") {
+      return approachPos(car.from, car.dist, ROAD_W * 0.18);
+    }
+    if (car.phase === "ring") {
+      return ringPos(car.angle);
+    }
+    // exit
+    return exitPos(car.to, car.dist);
+  }
+
+  function ringOccupiedNear(angle, windowRad, excludeId) {
+    for (const c of cars) {
+      if (c.id === excludeId || c.phase !== "ring") continue;
+      const d = angleDiffCCW(angle, c.angle);
+      // car is slightly ahead on CCW path if d is small... actually car ahead has larger angle in CCW
+      // gap behind entry: cars approaching the entry angle from CW side
+      const behind = angleDiffCCW(c.angle, angle); // how much CCW from car to angle
+      if (behind < windowRad || d < windowRad * 0.35) return true;
+    }
+    return false;
+  }
+
+  function leaderOnApproach(car) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const o of cars) {
+      if (o.id === car.id) continue;
+      if (o.from !== car.from) continue;
+      if (o.phase !== "approach" && o.phase !== "wait") continue;
+      // leader is closer to center (smaller dist)
+      if (o.dist < car.dist && car.dist - o.dist < bestDist) {
+        bestDist = car.dist - o.dist;
+        best = o;
+      }
+    }
+    return best ? { car: best, gap: bestDist } : null;
+  }
+
+  function leaderOnRing(car) {
+    let best = null;
+    let bestD = Infinity;
+    for (const o of cars) {
+      if (o.id === car.id || o.phase !== "ring") continue;
+      const d = angleDiffCCW(car.angle, o.angle);
+      if (d > 0.001 && d < bestD) {
+        bestD = d;
+        best = o;
+      }
+    }
+    return best ? { car: best, gapAngle: bestD } : null;
+  }
+
+  function leaderOnExit(car) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const o of cars) {
+      if (o.id === car.id || o.phase !== "exit" || o.to !== car.to) continue;
+      if (o.dist > car.dist && o.dist - car.dist < bestDist) {
+        bestDist = o.dist - car.dist;
+        best = o;
+      }
+    }
+    return best ? { car: best, gap: bestDist } : null;
+  }
+
+  function updateCar(car, dt) {
+    const stopAt = stopLineDist() + 6;
+    let target = car.maxSpeed;
+
+    if (car.phase === "approach" || car.phase === "wait") {
+      const lead = leaderOnApproach(car);
+      if (lead && lead.gap < car.w + 22) {
+        target = lead.gap < car.w + 10 ? 0 : Math.min(target, lead.car.speed * 0.8);
+      }
+
+      const distToStop = car.dist - stopAt; // positive if still before stop line
+      const L = lights[car.from];
+
+      if (car.dist > stopAt - 2) {
+        if (L.state === "RED") {
+          if (distToStop < 120) {
+            if (distToStop < 6) target = 0;
+            else target = Math.min(target, Math.sqrt(Math.max(0, 2 * 400 * Math.max(0, distToStop - 2))));
+          }
+        } else if (L.state === "YELLOW") {
+          if (!car.decidedYellow) {
+            car.decidedYellow = true;
+            const t = distToStop / Math.max(car.speed, 1);
+            car.willStopOnYellow = t > 0.9 || distToStop > 90;
+          }
+          if (car.willStopOnYellow) {
+            if (distToStop < 6) target = 0;
+            else target = Math.min(target, Math.sqrt(Math.max(0, 2 * 400 * Math.max(0, distToStop - 2))));
+          }
+        } else {
+          car.decidedYellow = false;
+          car.willStopOnYellow = false;
+        }
+      }
+
+      // Can enter ring?
+      const atLine = car.dist <= stopAt + 4;
+      const lightOk =
+        L.state === "GREEN" ||
+        (L.state === "YELLOW" && !car.willStopOnYellow);
+      const ringFree = !ringOccupiedNear(ENTRY_ANGLE[car.from], 0.55, car.id);
+
+      if (atLine && lightOk && ringFree && (!lead || lead.gap > car.w + 16)) {
+        car.phase = "ring";
+        car.angle = ENTRY_ANGLE[car.from];
+        car.speed = Math.max(car.speed, 40);
+      } else {
+        // Move toward center: decrease dist
+        if (car.speed < target) car.speed = Math.min(target, car.speed + 180 * dt);
+        else car.speed = Math.max(target, car.speed - 360 * dt);
+
+        const mustStop =
+          car.dist > stopAt - 2 &&
+          (L.state === "RED" || (L.state === "YELLOW" && car.willStopOnYellow));
+
+        let next = car.dist - car.speed * dt;
+        if (mustStop && next < stopAt) {
+          car.dist = stopAt;
+          car.speed = 0;
+          car.phase = "wait";
+        } else {
+          // Don't pass leader
+          if (lead && next < lead.car.dist + car.w + 12) {
+            car.dist = lead.car.dist + car.w + 12;
+            car.speed = Math.min(car.speed, lead.car.speed);
+          } else {
+            car.dist = next;
+          }
+          if (car.speed < 4 && mustStop) car.phase = "wait";
+          else if (car.phase === "wait" && car.speed > 8) car.phase = "approach";
+        }
+      }
+      return;
+    }
+
+    if (car.phase === "ring") {
+      // Angular speed
+      const lead = leaderOnRing(car);
+      const minGap = (car.w + 18) / RING_R;
+      if (lead && lead.gapAngle < minGap * 1.8) {
+        target = lead.gapAngle < minGap ? 0 : Math.min(target, lead.car.speed * 0.85);
+      }
+
+      // Approaching exit?
+      const toExit = angleDiffCCW(car.angle, car.targetExitAngle);
+      // Must travel at least a little into the ring before exiting
+      const fromEntry = angleDiffCCW(ENTRY_ANGLE[car.from], car.angle);
+      const canExit = fromEntry > 0.35 && toExit < 0.35;
+
+      if (canExit && toExit < 0.22) {
+        car.phase = "exit";
+        car.dist = RING_R + RING_HALF * 0.2;
+        car.speed = Math.max(50, car.speed);
+        return;
+      }
+
+      if (car.speed < target) car.speed = Math.min(target, car.speed + 160 * dt);
+      else car.speed = Math.max(target, car.speed - 300 * dt);
+
+      let dAng = (car.speed * dt) / RING_R;
+      if (lead && dAng > lead.gapAngle - minGap) {
+        dAng = Math.max(0, lead.gapAngle - minGap);
+        car.speed = dAng * RING_R / Math.max(dt, 1e-6);
+      }
+      car.angle = normAngle(car.angle + dAng);
+      return;
+    }
+
+    // exit: move outward
+    {
+      const lead = leaderOnExit(car);
+      if (lead && lead.gap < car.w + 20) {
+        target = lead.gap < car.w + 10 ? 0 : Math.min(target, lead.car.speed * 0.85);
+      }
+      if (car.speed < target) car.speed = Math.min(target, car.speed + 200 * dt);
+      else car.speed = Math.max(target, car.speed - 280 * dt);
+
+      let next = car.dist + car.speed * dt;
+      if (lead && next > lead.car.dist - car.w - 12) {
+        next = lead.car.dist - car.w - 12;
+        car.speed = Math.min(car.speed, lead.car.speed);
+      }
+      car.dist = next;
+    }
+  }
+
+  function update(dt) {
+    if (paused) return;
+
+    if (!manual) {
+      autoTimer -= dt;
+      if (autoTimer <= 0) {
+        autoPhase = (autoPhase + 1) % 4;
+        applyAutoPhase();
+      }
+    }
+
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      spawnCar();
+      spawnTimer = expovariate(meanArrival);
+    }
+
+    for (const c of cars) updateCar(c, dt);
+
+    const keep = [];
+    const maxOut = RING_R + APPROACH_LEN;
+    for (const c of cars) {
+      if (c.phase === "exit" && c.dist > maxOut) totalPassed++;
+      else keep.push(c);
+    }
+    cars = keep;
+  }
+
+  // ── Drawing ───────────────────────────────────────────────
+  function drawRoads() {
+    ctx.fillStyle = "#121620";
+    ctx.fillRect(0, 0, CSS_W, CSS_H);
+
+    // Soft vignette circle area
+    const g = ctx.createRadialGradient(CX, CY, RING_R * 0.2, CX, CY, Math.min(CSS_W, CSS_H) * 0.55);
+    g.addColorStop(0, "#1a2030");
+    g.addColorStop(1, "#121620");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, CSS_W, CSS_H);
+
+    // Four approach roads
+    ctx.fillStyle = "#30343e";
+    for (const dir of DIRS) {
+      const a = approachAxis(dir);
+      const half = ROAD_W / 2;
+      // Rectangle from center out
+      const len = APPROACH_LEN + RING_R;
+      const px = CX - a.side.x * half;
+      const py = CY - a.side.y * half;
+      // draw as polygon
+      const x1 = CX + a.side.x * half;
+      const y1 = CY + a.side.y * half;
+      const x2 = CX - a.side.x * half;
+      const y2 = CY - a.side.y * half;
+      const x3 = x2 + a.outward.x * len;
+      const y3 = y2 + a.outward.y * len;
+      const x4 = x1 + a.outward.x * len;
+      const y4 = y1 + a.outward.y * len;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.lineTo(x4, y4);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Ring asphalt
+    ctx.beginPath();
+    ctx.arc(CX, CY, RING_R + RING_HALF, 0, Math.PI * 2);
+    ctx.arc(CX, CY, Math.max(8, RING_R - RING_HALF), 0, Math.PI * 2, true);
+    ctx.fillStyle = "#30343e";
+    ctx.fill();
+
+    // Ring edge lines
+    ctx.strokeStyle = "#dcd250";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 10]);
+    ctx.beginPath();
+    ctx.arc(CX, CY, RING_R, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = "#5a6278";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(CX, CY, RING_R + RING_HALF, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(CX, CY, RING_R - RING_HALF, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Center island
+    ctx.beginPath();
+    ctx.arc(CX, CY, RING_R - RING_HALF - 2, 0, Math.PI * 2);
+    ctx.fillStyle = "#1e2433";
+    ctx.fill();
+    ctx.strokeStyle = "#3a4258";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Island chevrons / label
+    ctx.fillStyle = "#6a738a";
+    ctx.font = `bold ${Math.max(11, RING_R * 0.14)}px Segoe UI, system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("↻", CX, CY - 4);
+    ctx.font = `${Math.max(9, RING_R * 0.1)}px Segoe UI, system-ui, sans-serif`;
+    ctx.fillText("CCW", CX, CY + RING_R * 0.14);
+
+    // Stop lines + crosswalks + labels
+    for (const dir of DIRS) {
+      const a = approachAxis(dir);
+      const d = stopLineDist();
+      const half = ROAD_W / 2 - 2;
+      const sx = CX + a.outward.x * d;
+      const sy = CY + a.outward.y * d;
+      // stop line perpendicular to outward
+      ctx.strokeStyle = "#f0f0f5";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(sx + a.side.x * half, sy + a.side.y * half);
+      ctx.lineTo(sx - a.side.x * half, sy - a.side.y * half);
+      ctx.stroke();
+
+      // Direction label
+      const lx = CX + a.outward.x * (d + 48);
+      const ly = CY + a.outward.y * (d + 48);
+      ctx.fillStyle = "#a0a8b9";
+      ctx.font = `bold ${Math.max(12, ROAD_W * 0.32)}px Segoe UI, system-ui, sans-serif`;
+      ctx.fillText(dir, lx, ly);
+    }
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+  }
+
+  function lightScreenPos(dir) {
+    const a = approachAxis(dir);
+    const d = LIGHT_OFFSET;
+    return {
+      x: CX + a.outward.x * d + a.side.x * (ROAD_W * 0.7),
+      y: CY + a.outward.y * d + a.side.y * (ROAD_W * 0.7),
+    };
+  }
+
+  /** hit boxes for canvas touch */
+  const lightHits = {};
+
+  function drawTrafficLight(dir) {
+    const p = lightScreenPos(dir);
+    const scale = Math.max(0.75, Math.min(CSS_W, CSS_H) / 700);
+    const bw = 22 * scale;
+    const bh = 58 * scale;
+    const x = p.x - bw / 2;
+    const y = p.y - bh / 2;
+    lightHits[dir] = { x, y, w: bw, h: bh };
+
+    // pole
+    ctx.fillStyle = "#5a5f6e";
+    ctx.fillRect(p.x - 2 * scale, p.y + bh / 2 - 4, 4 * scale, 18 * scale);
+
+    // housing
+    roundRect(x, y, bw, bh, 5 * scale);
+    ctx.fillStyle = "#232630";
+    ctx.fill();
+    ctx.strokeStyle = "#3c4150";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    const L = lights[dir];
+    const lamps = [
+      { state: "RED", color: "#e74c3c", yy: y + bh * 0.22 },
+      { state: "YELLOW", color: "#f1c40f", yy: y + bh * 0.5 },
+      { state: "GREEN", color: "#2ecc71", yy: y + bh * 0.78 },
+    ];
+    for (const lamp of lamps) {
+      const on = L.state === lamp.state;
+      const r = bw * 0.28;
+      if (on) {
+        ctx.beginPath();
+        ctx.fillStyle = lamp.color + "66";
+        ctx.arc(p.x, lamp.yy, r * 1.55, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.fillStyle = on ? lamp.color : "#282a34";
+      ctx.arc(p.x, lamp.yy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function drawCar(car) {
+    const p = carWorld(car);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.heading);
+    const w = car.w;
+    const h = car.h;
+    // body
+    roundRect(-w / 2, -h / 2, w, h, 4);
+    ctx.fillStyle = car.color;
+    ctx.fill();
+    // cabin
+    roundRect(-w * 0.1, -h * 0.35, w * 0.35, h * 0.7, 2);
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fill();
+    // windows
+    ctx.fillStyle = "rgba(180,210,230,0.85)";
+    roundRect(-w * 0.05, -h * 0.28, w * 0.12, h * 0.56, 1);
+    ctx.fill();
+    roundRect(w * 0.1, -h * 0.28, w * 0.12, h * 0.56, 1);
+    ctx.fill();
+    // headlights
+    ctx.fillStyle = "#fff0b4";
+    ctx.beginPath();
+    ctx.arc(w / 2 - 2, -h * 0.28, 2, 0, Math.PI * 2);
+    ctx.arc(w / 2 - 2, h * 0.28, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    drawRoads();
+    for (const d of DIRS) drawTrafficLight(d);
+    for (const c of cars) drawCar(c);
+
+    if (paused) {
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillRect(0, 0, CSS_W, CSS_H);
+      ctx.fillStyle = "#f1c40f";
+      ctx.font = `bold ${Math.max(22, CSS_W * 0.05)}px Segoe UI, system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("일시정지", CX, CY);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+    }
+  }
+
+  // ── UI wiring ─────────────────────────────────────────────
+  const stMode = document.getElementById("stMode");
+  const stCars = document.getElementById("stCars");
+  const stSpawn = document.getElementById("stSpawn");
+  const stPass = document.getElementById("stPass");
+  const btnMode = document.getElementById("btnMode");
+  const btnPause = document.getElementById("btnPause");
+  const cards = document.getElementById("lightCards");
+
+  function buildCards() {
+    cards.innerHTML = "";
+    for (const d of DIRS) {
+      const card = document.createElement("div");
+      card.className = "light-card";
+      card.innerHTML = `
+        <div class="name">${DIR_LABEL[d]}</div>
+        <div class="btns">
+          <button type="button" class="sig red" data-dir="${d}" data-state="RED" aria-label="${d} 빨강"></button>
+          <button type="button" class="sig yellow" data-dir="${d}" data-state="YELLOW" aria-label="${d} 노랑"></button>
+          <button type="button" class="sig green" data-dir="${d}" data-state="GREEN" aria-label="${d} 초록"></button>
+        </div>`;
+      cards.appendChild(card);
+    }
+    cards.addEventListener("click", (e) => {
+      const btn = e.target.closest(".sig");
+      if (!btn) return;
+      manual = true;
+      setDirLight(btn.dataset.dir, btn.dataset.state);
+      updateModeBtn();
+    });
+  }
+
+  function paintLightButtons() {
+    document.querySelectorAll(".sig").forEach((btn) => {
+      const on = lights[btn.dataset.dir].state === btn.dataset.state;
+      btn.classList.toggle("on", on);
+    });
+  }
+
+  function updateModeBtn() {
+    btnMode.textContent = manual ? "수동" : "자동";
+    btnMode.classList.toggle("mode-on", manual);
+    stMode.textContent = manual ? "MANUAL" : "AUTO";
+  }
+
+  function refreshHud() {
+    stCars.textContent = String(cars.length);
+    stSpawn.textContent = String(totalSpawned);
+    stPass.textContent = String(totalPassed);
+    stMode.textContent = manual ? "MANUAL" : "AUTO";
+  }
+
+  function resetSim() {
+    cars = [];
+    totalSpawned = 0;
+    totalPassed = 0;
+    spawnTimer = expovariate(meanArrival);
+    autoPhase = 0;
+    if (!manual) applyAutoPhase();
+    else {
+      for (const d of DIRS) setDirLight(d, "RED");
+    }
+    paused = false;
+    btnPause.textContent = "일시정지";
+    btnPause.classList.remove("paused");
+  }
+
+  document.getElementById("allRed").onclick = () => setAll("RED");
+  document.getElementById("allYellow").onclick = () => setAll("YELLOW");
+  document.getElementById("allGreen").onclick = () => setAll("GREEN");
+  document.getElementById("btnCycle").onclick = () => cycleAll();
+  document.getElementById("btnReset").onclick = () => resetSim();
+
+  btnMode.onclick = () => {
+    manual = !manual;
+    if (!manual) {
+      autoPhase = 0;
+      applyAutoPhase();
+    } else {
+      for (const d of DIRS) lights[d].timer = Infinity;
+    }
+    updateModeBtn();
+    paintLightButtons();
+  };
+
+  btnPause.onclick = () => {
+    paused = !paused;
+    btnPause.textContent = paused ? "재개" : "일시정지";
+    btnPause.classList.toggle("paused", paused);
+  };
+
+  document.getElementById("spawnRate").oninput = (e) => {
+    meanArrival = parseFloat(e.target.value);
+    document.getElementById("spawnLabel").textContent = meanArrival.toFixed(2) + "s";
+  };
+
+  // Canvas touch / click on lights
+  function canvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e.changedTouches ? e.changedTouches[0] : e;
+    return {
+      x: ((t.clientX - rect.left) / rect.width) * CSS_W,
+      y: ((t.clientY - rect.top) / rect.height) * CSS_H,
+    };
+  }
+
+  function hitLight(x, y) {
+    for (const d of DIRS) {
+      const b = lightHits[d];
+      if (!b) continue;
+      // generous touch target
+      const pad = 18;
+      if (x >= b.x - pad && x <= b.x + b.w + pad && y >= b.y - pad && y <= b.y + b.h + pad) {
+        return d;
+      }
+    }
+    return null;
+  }
+
+  function onCanvasTap(e) {
+    e.preventDefault();
+    const p = canvasPos(e);
+    const d = hitLight(p.x, p.y);
+    if (!d) return;
+    manual = true;
+    const s = lights[d].state;
+    setDirLight(d, s === "GREEN" ? "YELLOW" : s === "YELLOW" ? "RED" : "GREEN");
+    updateModeBtn();
+  }
+
+  canvas.addEventListener("click", onCanvasTap);
+  canvas.addEventListener("touchend", onCanvasTap, { passive: false });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === " " || e.code === "Space") {
+      e.preventDefault();
+      btnPause.click();
+    } else if (e.key === "m" || e.key === "M") {
+      btnMode.click();
+    } else if (e.key === "r" || e.key === "R") {
+      resetSim();
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      cycleAll();
+    } else if (e.key === "1") setAll("RED");
+    else if (e.key === "2") setAll("YELLOW");
+    else if (e.key === "3") setAll("GREEN");
+  });
+
+  // ── Loop ──────────────────────────────────────────────────
+  function frame(ts) {
+    if (!lastTs) lastTs = ts;
+    let dt = (ts - lastTs) / 1000;
+    lastTs = ts;
+    dt = Math.min(dt, 0.05);
+    update(dt);
+    draw();
+    refreshHud();
+    requestAnimationFrame(frame);
+  }
+
+  buildCards();
+  resize();
+  applyAutoPhase();
+  updateModeBtn();
+  paintLightButtons();
+
+  window.addEventListener("resize", () => {
+    resize();
+  });
+  // iOS orientation
+  window.addEventListener("orientationchange", () => setTimeout(resize, 200));
+
+  // ResizeObserver for stage
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => resize()).observe(stage);
+  }
+
+  requestAnimationFrame(frame);
+})();
+  </script>
+</body>
+</html>
